@@ -1,0 +1,16 @@
+# This is a JavaScript/TypeScript project.
+# This file lists the external libraries used, in a format similar to Python's requirements.txt.
+# The standard dependency manager for this type of project is npm or yarn, using a package.json file.
+
+# Main Dependencies (from index.html importmap)
+# These are the libraries required for the application to run.
+react==19.1.1
+react-dom==19.1.1
+@google/genai==1.19.0
+
+# Development Dependencies
+# These are required for development, compilation, and type checking.
+# Versions are typical for a React 19 project.
+typescript==5.4.5
+@types/react==18.3.3
+@types/react-dom==18.3.0
