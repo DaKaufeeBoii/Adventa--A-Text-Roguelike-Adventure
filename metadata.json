@@ -1,0 +1,5 @@
+{
+  "name": "Adventa- A Text Roguelike Adventure",
+  "description": "A dynamic text-based roguelike adventure game powered by Gemini. Each scene is generated with unique text and a corresponding image, creating an endless, immersive fantasy experience.",
+  "requestFramePermissions": []
+}
