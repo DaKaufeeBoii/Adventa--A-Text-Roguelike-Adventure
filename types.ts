@@ -1,5 +1,4 @@
 // Fix: Defining types for the application
-
 export interface InventoryItem {
   name: string;
   description: string;
