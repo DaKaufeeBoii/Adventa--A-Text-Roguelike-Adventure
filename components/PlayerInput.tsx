@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 
 interface PlayerInputProps {
@@ -25,7 +24,8 @@ const PlayerInput: React.FC<PlayerInputProps> = ({ onSubmit, isLoading }) => {
         onChange={(e) => setInput(e.target.value)}
         placeholder="Or type your own command..."
         disabled={isLoading}
-        className="flex-grow bg-slate-700 border border-slate-600 text-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:bg-slate-800"
+        className="flex-grow bg-slate-700 border border-slate-600 text-gray-200 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:bg-slate-800 disabled:cursor-not-allowed"
+        aria-label="Custom command input"
       />
       <button
         type="submit"

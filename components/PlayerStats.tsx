@@ -1,47 +1,68 @@
-
+// Fix: Implemented PlayerStats component
 import React from 'react';
-import type { PlayerState } from '../types';
+import { PlayerStats as PlayerStatsType } from '../types';
 
 interface PlayerStatsProps {
-  playerState: PlayerState;
+  stats: PlayerStatsType | null;
 }
 
-const PlayerStats: React.FC<PlayerStatsProps> = ({ playerState }) => {
-  const healthPercentage = Math.max(0, playerState.health);
+const StatDisplay: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
+    <div className="text-center">
+        <p className="text-sm text-slate-400">{label}</p>
+        <p className="text-xl font-bold text-gray-100">{value}</p>
+    </div>
+);
 
-  const getHealthColor = () => {
-    if (healthPercentage > 60) return 'bg-green-500';
-    if (healthPercentage > 30) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
-  
+
+const PlayerStats: React.FC<PlayerStatsProps> = ({ stats }) => {
+  if (!stats) {
+    return (
+      <div className="bg-slate-800/50 p-4 rounded-lg shadow-inner border border-slate-700 animate-pulse h-[220px]">
+        <div className="h-6 bg-slate-700 rounded w-3/4 mx-auto mb-2"></div>
+        <div className="h-4 bg-slate-700 rounded w-1/2 mx-auto"></div>
+      </div>
+    );
+  }
+
+  const hpPercentage = (stats.hp / stats.maxHp) * 100;
+
   return (
-    <div className="bg-slate-800/50 p-4 rounded-lg shadow-lg border border-slate-700">
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1">
-          <span className="font-bold text-gray-300">Health</span>
-          <span className="font-bold text-white">{playerState.health} / 100</span>
+    <div className="bg-slate-800/50 p-4 rounded-lg shadow-inner flex flex-col justify-between border border-slate-700">
+      <div>
+        <h2 className="text-2xl font-bold text-amber-400 text-center font-serif">{stats.name}</h2>
+        <p className="text-center text-slate-400 mb-4">The {stats.characterClass}</p>
+
+        {/* HP Bar */}
+        <div className="mb-4">
+            <div className="flex justify-between items-baseline mb-1">
+                <span className="text-sm font-bold text-gray-200">HP</span>
+                <span className="text-sm font-mono text-gray-300">{stats.hp} / {stats.maxHp}</span>
+            </div>
+            <div className="w-full bg-slate-700 rounded-full h-2.5">
+                <div 
+                    className="bg-red-600 h-2.5 rounded-full transition-all duration-500" 
+                    style={{ width: `${hpPercentage}%` }}
+                ></div>
+            </div>
         </div>
-        <div className="w-full bg-slate-700 rounded-full h-4 overflow-hidden">
-          <div
-            className={`h-4 rounded-full transition-all duration-500 ${getHealthColor()}`}
-            style={{ width: `${healthPercentage}%` }}
-          ></div>
+
+        {/* Other Stats */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+            <StatDisplay label="Attack" value={stats.attack} />
+            <StatDisplay label="Defense" value={stats.defense} />
         </div>
       </div>
+
+      {/* Inventory */}
       <div>
-        <h3 className="font-bold text-gray-300 mb-2">Inventory</h3>
-        <div className="flex flex-wrap gap-2">
-            {playerState.inventory.length > 0 ? (
-                playerState.inventory.map((item, index) => (
-                    <div key={index} className="bg-slate-700 text-sm text-gray-200 px-3 py-1 rounded-full">
-                        {item}
-                    </div>
-                ))
-            ) : (
-                <p className="text-slate-400 text-sm italic">Your pockets are empty.</p>
-            )}
-        </div>
+        <h3 className="text-lg font-bold text-amber-400 mb-2 border-t border-slate-600 pt-3">Inventory</h3>
+        {stats.inventory.length > 0 ? (
+          <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
+            {stats.inventory.map((item, index) => <li key={index}>{item}</li>)}
+          </ul>
+        ) : (
+          <p className="text-slate-500 text-sm italic">Your pockets are empty.</p>
+        )}
       </div>
     </div>
   );

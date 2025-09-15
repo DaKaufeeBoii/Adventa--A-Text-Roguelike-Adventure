@@ -1,17 +1,18 @@
-
-export interface GameStep {
-  description: string;
-  health: number;
+// Fix: Defining types for the application
+export interface PlayerStats {
+  name: string;
+  characterClass: string;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
   inventory: string[];
-  possibleActions: string[];
-  imagePrompt: string;
-  enemy: {
-    name: string;
-    health: number;
-  } | null;
 }
 
-export interface PlayerState {
-  health: number;
-  inventory: string[];
+export interface StoryChoice {
+  story: string;
+  playerStats: PlayerStats;
+  possibleActions: string[];
+  isGameOver: boolean;
+  imagePrompt: string;
 }

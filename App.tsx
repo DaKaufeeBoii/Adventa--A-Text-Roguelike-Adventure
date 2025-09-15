@@ -1,110 +1,174 @@
-
-import React, { useState, useEffect, useCallback } from 'react';
-import { generateAdventureStep, generateSceneImage } from './services/geminiService';
-import type { PlayerState } from './types';
+// Fix: Implemented the main App component to manage game state
+import React, { useState, useCallback } from 'react';
 import Navbar from './components/Navbar';
+import PlayerStats from './components/PlayerStats';
 import ImageDisplay from './components/ImageDisplay';
 import StoryOutput from './components/StoryOutput';
 import PlayerInput from './components/PlayerInput';
-import Loader from './components/Loader';
-import PlayerStats from './components/PlayerStats';
+import CharacterCreation from './components/CharacterCreation';
+import LogModal from './components/LogModal';
+import { PlayerStats as PlayerStatsType, StoryChoice } from './types';
+import { startGame, processPlayerAction, generateSceneImage } from './services/geminiService';
+import { audioService } from './services/audioService';
+
+type AppState = 'CHARACTER_CREATION' | 'LOADING' | 'GAME' | 'GAME_OVER';
 
 const App: React.FC = () => {
-  const [history, setHistory] = useState<string[]>([]);
-  const [playerState, setPlayerState] = useState<PlayerState>({ health: 100, inventory: [] });
-  const [possibleActions, setPossibleActions] = useState<string[]>([]);
-  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isNewGame, setIsNewGame] = useState<boolean>(true);
-
-  const processGameTurn = useCallback(async (action: string) => {
-    setIsLoading(true);
-    setError(null);
-
-    const fullHistory = action === 'start' ? [] : [...history, `> ${action}`];
-
-    try {
-      const gameState = await generateAdventureStep(history, action, playerState.inventory, playerState.health);
-      
-      setHistory(prev => [...prev, gameState.description]);
-      setPlayerState({ health: gameState.health, inventory: gameState.inventory });
-      setPossibleActions(gameState.possibleActions);
-
-      if (gameState.health <= 0) {
-        setHistory(prev => [...prev, "You have fallen. The adventure ends here. But a new one can always begin..."]);
-        setPossibleActions(["Start a New Game"]);
-      }
-
-      const imageUrl = await generateSceneImage(gameState.imagePrompt);
-      setCurrentImageUrl(imageUrl);
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
-    } finally {
-      setIsLoading(false);
-      setIsNewGame(false);
-    }
-  }, [history, playerState.inventory, playerState.health]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    processGameTurn('start');
-  }, []);
-
-  const handlePlayerAction = (action: string) => {
-    if (isLoading) return;
-
-    if (action === "Start a New Game") {
-        setHistory([]);
-        setPlayerState({ health: 100, inventory: [] });
-        setPossibleActions([]);
-        setCurrentImageUrl(null);
-        setError(null);
-        setIsNewGame(true);
-        processGameTurn('start');
-        return;
-    }
+    const [appState, setAppState] = useState<AppState>('CHARACTER_CREATION');
+    const [playerStats, setPlayerStats] = useState<PlayerStatsType | null>(null);
+    const [dialogue, setDialogue] = useState<string>('');
+    const [possibleActions, setPossibleActions] = useState<string[]>([]);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
+    const [history, setHistory] = useState<string[]>([]);
     
-    setHistory(prev => [...prev, `\n> ${action}`]);
-    processGameTurn(action);
-  };
-  
-  if (isNewGame && isLoading) {
+    const [isLoading, setIsLoading] = useState(false);
+    const [isImageLoading, setIsImageLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [showActions, setShowActions] = useState(false);
+
+    const [isLogOpen, setIsLogOpen] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+
+    const handleMuteToggle = () => {
+        audioService.toggleMute();
+        setIsMuted(prev => !prev);
+    };
+
+    const handleApiResponse = useCallback((response: StoryChoice) => {
+        setPlayerStats(response.playerStats);
+        setDialogue(response.story);
+        setPossibleActions(response.possibleActions);
+        setHistory(prev => [...prev, response.story]);
+        setShowActions(false);
+
+        audioService.playAmbiance(response.imagePrompt);
+
+        setIsImageLoading(true);
+        generateSceneImage(response.imagePrompt)
+            .then(url => setImageUrl(url))
+            .catch(() => setError("Failed to generate scene image."))
+            .finally(() => setIsImageLoading(false));
+
+        if (response.isGameOver) {
+            setAppState('GAME_OVER');
+        } else {
+            setAppState('GAME');
+        }
+    }, []);
+    
+    const handleCharacterCreate = useCallback(async (name: string, characterClass: string) => {
+        setAppState('LOADING');
+        setIsLoading(true);
+        setError(null);
+        try {
+            const initialStory = await startGame(name, characterClass);
+            setHistory([`> You are ${name}, the ${characterClass}.`, initialStory.story]);
+            handleApiResponse(initialStory);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+            setAppState('CHARACTER_CREATION');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [handleApiResponse]);
+    
+    const handlePlayerAction = useCallback(async (action: string) => {
+        if (!playerStats) return;
+        
+        setIsLoading(true);
+        setError(null);
+        setDialogue('');
+        setPossibleActions([]);
+        setHistory(prev => [...prev, `> ${action}`]);
+        
+        try {
+            const nextStory = await processPlayerAction(playerStats, history, action);
+            handleApiResponse(nextStory);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+            setPossibleActions(possibleActions); 
+            setDialogue(history[history.length-2] || 'You are in a bind.');
+            setAppState('GAME');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [playerStats, history, handleApiResponse, possibleActions]);
+
+    const handleRestart = () => {
+        setAppState('CHARACTER_CREATION');
+        setPlayerStats(null);
+        setDialogue('');
+        setPossibleActions([]);
+        setImageUrl(null);
+        setHistory([]);
+        setError(null);
+        setShowActions(false);
+    };
+    
+    const renderContent = () => {
+        switch (appState) {
+            case 'CHARACTER_CREATION':
+                return <CharacterCreation onCharacterCreate={handleCharacterCreate} isLoading={isLoading} />;
+            case 'LOADING':
+                 return (
+                    <div className="text-center mt-20">
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-amber-400 mx-auto mb-4"></div>
+                        <p className="text-xl text-slate-400">The story unfolds...</p>
+                        {error && <p className="text-red-400 mt-4">{error}</p>}
+                    </div>
+                );
+            case 'GAME':
+            case 'GAME_OVER':
+                return (
+                    <div className="flex flex-col gap-8 w-full max-w-6xl mx-auto">
+                        <ImageDisplay imageUrl={imageUrl} isLoading={isImageLoading} />
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-1 flex flex-col gap-8">
+                                <PlayerStats stats={playerStats} />
+                                {appState === 'GAME' && <PlayerInput onSubmit={handlePlayerAction} isLoading={isLoading || !showActions} />}
+                                {appState === 'GAME_OVER' && (
+                                     <div className="text-center p-6 bg-red-900/50 border border-red-500 rounded-lg animate-fade-in">
+                                         <h2 className="text-3xl font-bold text-red-400 font-serif">GAME OVER</h2>
+                                         <p className="text-slate-300 mt-2 mb-4">{dialogue}</p>
+                                         <button onClick={handleRestart} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-2 px-4 rounded transition-colors">
+                                            Start a New Legend
+                                        </button>
+                                     </div>
+                                )}
+                            </div>
+                            <div className="lg:col-span-2">
+                                <StoryOutput
+                                    dialogue={dialogue}
+                                    onDialogueFinished={() => setShowActions(true)}
+                                    showActions={showActions && appState !== 'GAME_OVER'}
+                                    possibleActions={possibleActions}
+                                    onActionClick={handlePlayerAction}
+                                    isLoading={isLoading}
+                                    error={error}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                );
+        }
+    };
+    
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900">
-            <Navbar />
-            <Loader message="Forging your destiny in the arcane mists..." />
+        <div className="bg-slate-900 text-gray-200 min-h-screen font-sans">
+            <Navbar isMuted={isMuted} onMuteToggle={handleMuteToggle} />
+            <main className="container mx-auto px-4 py-24 flex justify-center">
+                {renderContent()}
+            </main>
+            <button
+                onClick={() => setIsLogOpen(true)}
+                className="fixed bottom-4 right-4 bg-slate-700 hover:bg-slate-600 text-amber-400 font-bold p-3 rounded-full shadow-lg transition-transform hover:scale-110"
+                title="View Adventure Log"
+            >
+                <i className="fas fa-book-open text-xl"></i>
+            </button>
+            <LogModal history={history} isOpen={isLogOpen} onClose={() => setIsLogOpen(false)} />
         </div>
     );
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-900 font-sans">
-      <Navbar />
-      <main className="container mx-auto pt-24 pb-12 px-4">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-          <div className="lg:col-span-3 flex flex-col gap-8">
-            <ImageDisplay imageUrl={currentImageUrl} isLoading={isLoading} />
-            <PlayerStats playerState={playerState} />
-          </div>
-          <div className="lg:col-span-2 flex flex-col h-[80vh]">
-            <div className="flex-grow mb-4">
-              <StoryOutput 
-                history={history} 
-                playerState={playerState} 
-                possibleActions={possibleActions} 
-                onActionClick={handlePlayerAction}
-                isLoading={isLoading} 
-                error={error} 
-              />
-            </div>
-            <PlayerInput onSubmit={handlePlayerAction} isLoading={isLoading} />
-          </div>
-        </div>
-      </main>
-    </div>
-  );
 };
 
 export default App;
