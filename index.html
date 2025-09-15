@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -7,17 +6,7 @@
     <title>Adventa- A Text Roguelike Adventure</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-    "react/": "https://aistudiocdn.com/react@^19.1.1/",
-    "react": "https://aistudiocdn.com/react@^19.1.1",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.19.0"
-  }
-}
-</script>
-<style>
+    <style>
       .custom-scrollbar::-webkit-scrollbar {
         width: 8px;
       }
@@ -39,8 +28,19 @@
         animation: fade-in 0.3s ease-out;
       }
     </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.19.0"
+  }
+}
+</script>
 </head>
   <body class="bg-slate-900 text-gray-200">
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

@@ -2,7 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { PlayerStats, StoryChoice, EnemyStats, CombatTurnResult } from '../types';
 
-// Per guidelines, API key is from environment variables
+// Per guidelines, API key is from environment variables.
+// Fix: Use process.env.API_KEY directly for API key initialization as per guidelines. This resolves the TypeScript error related to `import.meta.env`.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const textModel = 'gemini-2.5-flash';
