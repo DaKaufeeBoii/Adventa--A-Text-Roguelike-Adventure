@@ -4,6 +4,7 @@ import { PlayerStats as PlayerStatsType } from '../types';
 
 interface PlayerStatsProps {
   stats: PlayerStatsType | null;
+  onOpenInventory: () => void;
 }
 
 const StatDisplay: React.FC<{ label: string; value: string | number }> = ({ label, value }) => (
@@ -14,7 +15,7 @@ const StatDisplay: React.FC<{ label: string; value: string | number }> = ({ labe
 );
 
 
-const PlayerStats: React.FC<PlayerStatsProps> = ({ stats }) => {
+const PlayerStats: React.FC<PlayerStatsProps> = ({ stats, onOpenInventory }) => {
   if (!stats) {
     return (
       <div className="bg-slate-800/50 p-4 rounded-lg shadow-inner border border-slate-700 animate-pulse h-[220px]">
@@ -57,9 +58,13 @@ const PlayerStats: React.FC<PlayerStatsProps> = ({ stats }) => {
       <div>
         <h3 className="text-lg font-bold text-amber-400 mb-2 border-t border-slate-600 pt-3">Inventory</h3>
         {stats.inventory.length > 0 ? (
-          <ul className="list-disc list-inside text-slate-300 text-sm space-y-1">
-            {stats.inventory.map((item, index) => <li key={index}>{item}</li>)}
-          </ul>
+          <button 
+                onClick={onOpenInventory}
+                className="w-full bg-slate-700 text-white px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors text-left flex items-center justify-between"
+            >
+                <span>View Inventory</span>
+                <span className="bg-slate-800 px-2 py-0.5 rounded-full text-sm font-mono">{stats.inventory.length}</span>
+            </button>
         ) : (
           <p className="text-slate-500 text-sm italic">Your pockets are empty.</p>
         )}

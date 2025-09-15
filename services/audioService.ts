@@ -1,30 +1,62 @@
 // New file: Service to manage ambient audio
+
+// Using a silent, base64-encoded WAV to unlock audio context on user interaction.
+// This is a minimal, universally supported audio file that prevents "no supported sources" errors.
+const silentWav = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABgAAABkYXRhAgAAAAEA';
+
 const audioFiles: { [key: string]: string } = {
-    dungeon: 'assets/sounds/dungeon.mp3',
-    forest: 'assets/sounds/forest.mp3',
-    battle: 'assets/sounds/battle.mp3',
-    peaceful: 'assets/sounds/peaceful.mp3',
-    default: 'assets/sounds/default.mp3',
+    dungeon: silentWav,
+    forest: silentWav,
+    battle: silentWav,
+    peaceful: silentWav,
+    default: silentWav,
 };
 
 class AudioService {
+    private audioCache: Map<string, HTMLAudioElement> = new Map();
     private currentAudio: HTMLAudioElement | null = null;
     private targetVolume: number = 0.3;
     private isMuted: boolean = false;
     private hasStarted: boolean = false;
+    private isTransitioning: boolean = false;
 
     constructor() {
         if (typeof window !== 'undefined') {
-            this.currentAudio = new Audio();
-            this.currentAudio.loop = true;
-            this.currentAudio.volume = 0;
+            this.preloadAssets();
+        }
+    }
+
+    private preloadAssets() {
+        for (const key in audioFiles) {
+            const audio = new Audio();
+            audio.src = audioFiles[key];
+            audio.loop = true;
+            audio.preload = 'auto';
+            audio.load();
+            this.audioCache.set(key, audio);
         }
     }
 
     public start() {
-        if (this.hasStarted || !this.currentAudio) return;
-        this.currentAudio.play().catch(e => console.error("Audio play failed:", e));
+        if (this.hasStarted) return;
         this.hasStarted = true;
+
+        // "Unlock" all audio elements by playing and pausing them on the first user interaction.
+        // This forces the browser to load the source and prepares them for future playback.
+        this.audioCache.forEach(audio => {
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    audio.pause();
+                }).catch((error) => {
+                    // This can fail if the user interacts again quickly or if the audio context is not yet allowed.
+                    // We can safely ignore this, as the main goal is to attempt to unlock audio.
+                    // Pausing ensures it's in a known state.
+                    console.warn("Audio unlock failed for one element (safely ignored):", error);
+                    audio.pause();
+                });
+            }
+        });
     }
 
     private determineSceneType(prompt: string): string {
@@ -36,10 +68,9 @@ class AudioService {
         return 'default';
     }
 
-    private fade(target: number, duration: number): Promise<void> {
+    private fade(audio: HTMLAudioElement, target: number, duration: number): Promise<void> {
         return new Promise(resolve => {
-            if (!this.currentAudio) return resolve();
-            const startVolume = this.currentAudio.volume;
+            const startVolume = audio.volume;
             const delta = target - startVolume;
             if (delta === 0) return resolve();
             
@@ -50,12 +81,10 @@ class AudioService {
             const timer = setInterval(() => {
                 currentTick++;
                 const newVolume = startVolume + (delta * (currentTick / ticks));
-                if (this.currentAudio) {
-                    this.currentAudio.volume = Math.max(0, Math.min(1, newVolume));
-                }
+                audio.volume = Math.max(0, Math.min(1, newVolume));
                 if (currentTick >= ticks) {
                     clearInterval(timer);
-                    if (this.currentAudio) this.currentAudio.volume = target;
+                    audio.volume = target;
                     resolve();
                 }
             }, tickRate);
@@ -63,24 +92,44 @@ class AudioService {
     }
 
     public async playAmbiance(prompt: string) {
-        if (!this.hasStarted || !this.currentAudio) return;
+        if (!this.hasStarted || this.isTransitioning) return;
 
         const sceneType = this.determineSceneType(prompt);
-        const newSrc = audioFiles[sceneType];
+        const newAudio = this.audioCache.get(sceneType);
 
-        const fullUrl = new URL(newSrc, window.location.href).href;
-        if (this.currentAudio.src === fullUrl && !this.currentAudio.paused) return;
-
-        await this.fade(0, 500);
-        
-        if (this.currentAudio.src !== fullUrl) {
-            this.currentAudio.src = newSrc;
-            await this.currentAudio.load();
-            await this.currentAudio.play().catch(e => console.error("Audio play failed:", e));
+        if (!newAudio) {
+            console.error(`Audio for scene type "${sceneType}" not found.`);
+            return;
         }
-        
-        if (!this.isMuted) {
-            await this.fade(this.targetVolume, 500);
+
+        if (this.currentAudio === newAudio && !this.currentAudio.paused) {
+            return;
+        }
+
+        this.isTransitioning = true;
+        const oldAudio = this.currentAudio;
+
+        try {
+            this.currentAudio = newAudio;
+
+            if (oldAudio && !oldAudio.paused && oldAudio.volume > 0) {
+                await this.fade(oldAudio, 0, 500);
+                oldAudio.pause();
+            }
+            
+            if (this.currentAudio) {
+                this.currentAudio.volume = 0; // Ensure it starts silently before fading in
+                await this.currentAudio.play();
+                if (!this.isMuted) {
+                    await this.fade(this.currentAudio, this.targetVolume, 500);
+                }
+            }
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error("Audio playback error:", error);
+            }
+        } finally {
+            this.isTransitioning = false;
         }
     }
 
@@ -88,9 +137,9 @@ class AudioService {
         if (!this.currentAudio) return;
         this.isMuted = !this.isMuted;
         if (this.isMuted) {
-            await this.fade(0, 300);
+            await this.fade(this.currentAudio, 0, 300);
         } else if (!this.currentAudio.paused) {
-            await this.fade(this.targetVolume, 300);
+            await this.fade(this.currentAudio, this.targetVolume, 300);
         }
     }
 }
